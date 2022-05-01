@@ -100,16 +100,20 @@ def remove_punc(sonnet):
 def generate_pairs(sonnet):
     dic = pyphen.Pyphen(lang='en')
 
-    pairs = []
-    words = sonnet.split()
-    for word in words:
-        word = word.strip(string.punctuation)
-        syllables = dic.inserted(word)
-        syllables = syllables.strip("-").split("-")
-        for syl in syllables:
-            pairs.append([syl, word])
-
-    return np.array(pairs)
+    line_pairs = []
+    lines = sonnet.split("\n")
+    for line in lines:
+        pairs = []
+        words = lines.split()
+        for word in words:
+            word = word.strip(string.punctuation)
+            syllables = dic.inserted(word)
+            syllables = syllables.strip("-").split("-")
+            for syl in syllables:
+                pairs.append([syl, word])
+        line_pairs.append(pairs)
+    
+    return np.array(line_pairs)
 
     
 
@@ -137,9 +141,7 @@ if __name__ == '__main__':
     cleaned_sonnet = remove_punc(sonnet)
     print(cleaned_sonnet)
 
-    # generate syllables and word pairs
-    pairs = generate_pairs(cleaned_sonnet)
-
+    
     # load word to vector models
     model_path = './saved_gan_models/saved_model_best_overall_mmd'
     syll_model_path = './enc_models/syllEncoding_20190419.bin'
@@ -147,20 +149,30 @@ if __name__ == '__main__':
     syllModel = Word2Vec.load(syll_model_path)
     wordModel = Word2Vec.load(word_model_path)
 
-    # clean lyrics
+    # generate syllables and word pairs
+    dic = pyphen.Pyphen(lang='en')
     entire_lyrics = []
-    for syll, word in pairs:
-        if syll in syllModel.wv.key_to_index and word in wordModel.wv.key_to_index:
-            entire_lyrics.append([syll, word])
+    lines = sonnet.split("\n")
+    for line in lines:
+        temp_pairs = []
+        words = line.split()
+        for word in words:
+            word = word.strip(string.punctuation)
+            syllables = dic.inserted(word)
+            syllables = syllables.strip("-").split("-")
+            for syl in syllables:
+                temp_pairs.append([syl, word])
+
+        # clean pairs
+        pairs = []
+        for syll, word in temp_pairs:
+            if syll in syllModel.wv.key_to_index and word in wordModel.wv.key_to_index:
+                pairs.append([syll, word])
+        entire_lyrics.append(pairs)
     
     # generate melody in segments
-    segment_length = 14
-    start = 0
     index = 1
-    while start < len(entire_lyrics):
-        end = min(start + segment_length, len(entire_lyrics))
-        lyrics = entire_lyrics[start: end]
-
+    for lyrics in entire_lyrics:
         length_song = len(lyrics)
         cond = []
 
@@ -205,7 +217,6 @@ if __name__ == '__main__':
             print('done', index)
         
         index += 1
-        start += segment_length
         
     print("END")
 
